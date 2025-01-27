@@ -136,6 +136,7 @@ pub async fn start_runner() -> Runner {
         // Read the runner receiver for requests
 
         let mut cache = DeviceCache::new();
+        let mut establishing = Vec::new();
 
         let mut usbmuxd = loop {
             match idevice::usbmuxd::UsbmuxdConnection::default().await {
@@ -159,7 +160,10 @@ pub async fn start_runner() -> Runner {
             for dev in devs.iter() {
                 if let std::collections::hash_map::Entry::Vacant(_) = cache.entry(dev.udid.clone())
                 {
-                    start_tunnel_task(dev.clone(), internal_sender.clone()).await;
+                    if !establishing.contains(&dev.udid) {
+                        start_tunnel_task(dev.clone(), internal_sender.clone()).await;
+                        establishing.push(dev.udid.clone());
+                    }
                 }
             }
 
@@ -223,10 +227,14 @@ pub async fn start_runner() -> Runner {
                             internal_sender.clone(),
                         )
                         .await;
+                        establishing.push(udid);
                         sender.send(RunnerResponse::Ok).ok();
                     }
                     RunnerRequestType::CacheDevice((udid, c)) => {
                         info!("Caching tun {udid}");
+                        if let Some(index) = establishing.iter().position(|x| *x == udid) {
+                            establishing.remove(index);
+                        }
                         cache.insert(udid, c);
                     }
                 }
