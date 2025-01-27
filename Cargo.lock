@@ -545,9 +545,9 @@ dependencies = [
 
 [[package]]
 name = "idevice"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d867bc2aca4501a4135c09f6228e03f88291e32e727a8dcc377e44fddecdd051"
+checksum = "d43d08cd4c8a740b6eabc2306b0bae4485585b54d409ba311ff16bac48a4f9a6"
 dependencies = [
  "byteorder",
  "env_logger",

@@ -134,9 +134,16 @@ pub async fn start_runner() -> Runner {
         // Read the runner receiver for requests
 
         let mut cache = DeviceCache::new();
-        let mut usbmuxd = idevice::usbmuxd::UsbmuxdConnection::default()
-            .await
-            .unwrap();
+
+        let mut usbmuxd = loop {
+            match idevice::usbmuxd::UsbmuxdConnection::default().await {
+                Ok(u) => break u,
+                Err(e) => {
+                    log::error!("Failed to connect to usbmuxd: {e:?}, trying again...");
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        };
         loop {
             let devs = match usbmuxd.get_devices().await {
                 Ok(d) => d,
@@ -334,6 +341,7 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
                 break;
             }
         }
+        info!("tunnel {udid} stopped");
     });
 
     Ok(CachedDevice {
