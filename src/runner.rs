@@ -157,7 +157,7 @@ pub async fn start_runner() -> Runner {
             };
 
             for dev in devs.iter() {
-                if let std::collections::hash_map::Entry::Vacant(e) = cache.entry(dev.udid.clone())
+                if let std::collections::hash_map::Entry::Vacant(_) = cache.entry(dev.udid.clone())
                 {
                     start_tunnel_task(dev.clone(), internal_sender.clone()).await;
                 }
@@ -254,7 +254,7 @@ async fn start_tunnel_task(
     dev: UsbmuxdDevice,
     sender: tokio::sync::mpsc::UnboundedSender<RunnerRequest>,
 ) {
-    let (s, r) = tokio::sync::oneshot::channel();
+    let (s, _) = tokio::sync::oneshot::channel();
     tokio::spawn(async move {
         match start_tunnel(&dev).await {
             Ok(d) => {
