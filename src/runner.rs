@@ -239,6 +239,18 @@ pub async fn start_runner() -> Runner {
                 }
             }
 
+            let mut to_remove = Vec::new();
+
+            for (udid, dev) in &mut cache {
+                if dev.killed.try_recv().is_ok() {
+                    to_remove.push(udid.clone());
+                }
+            }
+
+            for udid in to_remove {
+                cache.remove(&udid);
+            }
+
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     });
