@@ -1,0 +1,15 @@
+[package]
+name = "tunneld-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.43", features = ["full"] }
+axum = { version = "0.8", features = ["json"] }
+idevice = { version = "0.1.10", features = ["usbmuxd", "core_device_proxy"] }
+log = { version = "0.4" }
+env_logger = { version = "0.11" }
+serde = { version = "1", features = ["derive"] }
+json = { version = "0.12" }
+tun-rs = { version = "1.5", features = ["async"] }
+serde_json = { version = "1" }
