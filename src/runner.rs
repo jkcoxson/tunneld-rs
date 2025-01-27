@@ -23,6 +23,7 @@ enum RunnerRequestType {
     ClearTunnels,
     Cancel(Udid),
     StartTunnel(Udid, IpAddr),
+    CacheDevice((Udid, CachedDevice)),
 }
 enum RunnerResponse {
     ListTunnels(String),
@@ -125,6 +126,7 @@ impl Runner {
 
 pub async fn start_runner() -> Runner {
     let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<RunnerRequest>();
+    let internal_sender = sender.clone();
 
     tokio::spawn(async move {
         // Check usbmuxd every second for the devices
@@ -157,14 +159,7 @@ pub async fn start_runner() -> Runner {
             for dev in devs.iter() {
                 if let std::collections::hash_map::Entry::Vacant(e) = cache.entry(dev.udid.clone())
                 {
-                    let cached_device = match start_tunnel(dev).await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            log::error!("Failed to create tun for {}: {e:?}", dev.udid);
-                            continue;
-                        }
-                    };
-                    e.insert(cached_device);
+                    start_tunnel_task(dev.clone(), internal_sender.clone()).await;
                 }
             }
 
@@ -219,22 +214,19 @@ pub async fn start_runner() -> Runner {
                         }
                     }
                     RunnerRequestType::StartTunnel(udid, ip) => {
-                        match start_tunnel(&UsbmuxdDevice {
-                            connection_type: Connection::Network(ip),
-                            udid: udid.clone(),
-                            device_id: 0,
-                        })
-                        .await
-                        {
-                            Ok(dev) => {
-                                cache.insert(udid, dev);
-                                sender.send(RunnerResponse::Ok).ok();
-                            }
-                            Err(e) => {
-                                log::error!("Failed to add device to tunneld: {e:?}");
-                                sender.send(RunnerResponse::Err).ok();
-                            }
-                        }
+                        start_tunnel_task(
+                            UsbmuxdDevice {
+                                connection_type: Connection::Network(ip),
+                                udid: udid.clone(),
+                                device_id: 0,
+                            },
+                            internal_sender.clone(),
+                        )
+                        .await;
+                        sender.send(RunnerResponse::Ok).ok();
+                    }
+                    RunnerRequestType::CacheDevice((udid, c)) => {
+                        cache.insert(udid, c);
                     }
                 }
             }
@@ -256,6 +248,25 @@ pub async fn start_runner() -> Runner {
     });
 
     Runner { sender }
+}
+
+async fn start_tunnel_task(
+    dev: UsbmuxdDevice,
+    sender: tokio::sync::mpsc::UnboundedSender<RunnerRequest>,
+) {
+    let (s, r) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        match start_tunnel(&dev).await {
+            Ok(d) => {
+                sender
+                    .send((RunnerRequestType::CacheDevice((dev.udid, d)), s))
+                    .ok();
+            }
+            Err(e) => {
+                log::error!("Failed to create tunnel for device: {e:?}");
+            }
+        };
+    });
 }
 
 async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::error::Error>> {
