@@ -226,6 +226,7 @@ pub async fn start_runner() -> Runner {
                         sender.send(RunnerResponse::Ok).ok();
                     }
                     RunnerRequestType::CacheDevice((udid, c)) => {
+                        info!("Caching tun {udid}");
                         cache.insert(udid, c);
                     }
                 }
@@ -331,13 +332,13 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
                             }
                             if let Err(e) = tun_proxy.send(&buf[..len]).await {
                                 warn!("Failed to send packet to device {udid}: {e:?}");
-                                killed_sender.send(()).unwrap();
+                                killed_sender.send(()).ok();
                                 break;
                             }
                         }
                         Err(e) => {
                             warn!("tunnel {udid} has stopped: {e:?}");
-                            killed_sender.send(()).unwrap();
+                            killed_sender.send(()).ok();
                             break;
                         }
                     }
