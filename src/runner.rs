@@ -1,14 +1,14 @@
 // Jackson Coxson
 
-use std::net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::net::IpAddr;
 
 use idevice::{
     core_device_proxy::CoreDeviceProxy,
-    lockdownd::LockdowndClient,
-    usbmuxd::{Connection, UsbmuxdConnection, UsbmuxdDevice},
-    IdeviceError, ReadWrite,
+    provider::{IdeviceProvider, TcpProvider, UsbmuxdProvider},
+    usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice},
+    IdeviceError, IdeviceService,
 };
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::Serialize;
 use serde_json::Map;
 use tun_rs::AbstractDevice;
@@ -279,30 +279,28 @@ async fn start_tunnel_task(
 }
 
 async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::error::Error>> {
-    let lockdownd_socket = socket_from_connection_type(
-        dev.connection_type.clone(),
-        dev.device_id,
-        idevice::lockdownd::LOCKDOWND_PORT,
-    )
-    .await?;
-
+    debug!("Creating provider for device");
     let mut usbmuxd = UsbmuxdConnection::default().await?;
-    let pairing_file = usbmuxd.get_pair_record(dev.udid.as_str()).await?;
+    let provider: Box<dyn IdeviceProvider> = match &dev.connection_type {
+        Connection::Usb => Box::new(UsbmuxdProvider {
+            addr: UsbmuxdAddr::default(),
+            tag: 1,
+            udid: dev.udid.clone(),
+            device_id: dev.device_id,
+            label: "tunneld-rs".to_string(),
+        }),
+        Connection::Network(ip_addr) => Box::new(TcpProvider {
+            addr: ip_addr.to_owned(),
+            pairing_file: usbmuxd.get_pair_record(&dev.udid).await?,
+            label: "tunneld-rs".to_string(),
+        }),
+        Connection::Unknown(u) => {
+            log::error!("Unknown device type: {u:?}");
+            return Err(IdeviceError::UnexpectedResponse.into());
+        }
+    };
 
-    let mut lockdown_client =
-        LockdowndClient::new(idevice::Idevice::new(lockdownd_socket, "tunneld"));
-    lockdown_client.start_session(&pairing_file).await?;
-
-    let (port, _) = lockdown_client
-        .start_service(idevice::core_device_proxy::SERVCE_NAME)
-        .await?;
-
-    let proxy_socket =
-        socket_from_connection_type(dev.connection_type.clone(), dev.device_id, port).await?;
-
-    let mut idev = idevice::Idevice::new(proxy_socket, "tunneld");
-    idev.start_session(&pairing_file).await?;
-    let mut tun_proxy = CoreDeviceProxy::new(idev);
+    let mut tun_proxy = CoreDeviceProxy::connect(&*provider).await?;
     let response = tun_proxy.establish_tunnel().await?;
     let server_address = response.server_address.parse::<IpAddr>()?;
     let udid = dev.udid.clone();
@@ -381,26 +379,5 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
         killed: killed_receiver,
         server_addr: server_address,
         rsd_port: response.server_rsd_port,
-    })
-}
-
-async fn socket_from_connection_type(
-    con: Connection,
-    id: u32,
-    port: u16,
-) -> Result<Box<dyn ReadWrite>, IdeviceError> {
-    Ok(match con {
-        idevice::usbmuxd::Connection::Usb => {
-            let usbmuxd = UsbmuxdConnection::default().await?;
-            usbmuxd.connect_to_device(id, port).await?
-        }
-        idevice::usbmuxd::Connection::Network(ip) => {
-            let socket_addr = match ip {
-                std::net::IpAddr::V4(ip) => SocketAddr::V4(SocketAddrV4::new(ip, port)),
-                std::net::IpAddr::V6(ip) => SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0)),
-            };
-            Box::new(tokio::net::TcpStream::connect(socket_addr).await?)
-        }
-        idevice::usbmuxd::Connection::Unknown(_) => return Err(IdeviceError::UnexpectedResponse),
     })
 }

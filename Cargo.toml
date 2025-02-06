@@ -6,7 +6,11 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.43", features = ["full"] }
 axum = { version = "0.8", features = ["json", "query"] }
-idevice = { version = "0.1.14", features = ["usbmuxd", "core_device_proxy"] }
+idevice = { version = "0.1.17", features = [
+  "usbmuxd",
+  "core_device_proxy",
+  "tcp",
+] }
 log = { version = "0.4" }
 env_logger = { version = "0.11" }
 serde = { version = "1", features = ["derive"] }
