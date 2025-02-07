@@ -24,6 +24,7 @@ enum RunnerRequestType {
     Cancel(Udid),
     StartTunnel(Udid, IpAddr),
     CacheDevice((Udid, CachedDevice)),
+    EstablishingFailed(Udid),
 }
 enum RunnerResponse {
     ListTunnels(String),
@@ -237,6 +238,11 @@ pub async fn start_runner() -> Runner {
                         }
                         cache.insert(udid, c);
                     }
+                    RunnerRequestType::EstablishingFailed(udid) => {
+                        if let Some(index) = establishing.iter().position(|x| *x == udid) {
+                            establishing.remove(index);
+                        }
+                    }
                 }
             }
 
@@ -273,6 +279,9 @@ async fn start_tunnel_task(
             }
             Err(e) => {
                 log::error!("Failed to create tunnel for device: {e:?}");
+                sender
+                    .send((RunnerRequestType::EstablishingFailed(dev.udid), s))
+                    .ok();
             }
         };
     });
