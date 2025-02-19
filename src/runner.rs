@@ -129,6 +129,8 @@ pub async fn start_runner() -> Runner {
     let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<RunnerRequest>();
     let internal_sender = sender.clone();
 
+    let usbmuxd_addr = UsbmuxdAddr::from_env_var().expect("Failed to get usbmuxd address");
+
     tokio::spawn(async move {
         // Check usbmuxd every second for the devices
         // Check them against the list of tunnels created
@@ -140,7 +142,7 @@ pub async fn start_runner() -> Runner {
         let mut establishing = Vec::new();
 
         let mut usbmuxd = loop {
-            match idevice::usbmuxd::UsbmuxdConnection::default().await {
+            match usbmuxd_addr.connect(1).await {
                 Ok(u) => break u,
                 Err(e) => {
                     log::error!("Failed to connect to usbmuxd: {e:?}, trying again...");
