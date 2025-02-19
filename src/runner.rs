@@ -130,6 +130,7 @@ pub async fn start_runner() -> Runner {
     let internal_sender = sender.clone();
 
     let usbmuxd_addr = UsbmuxdAddr::from_env_var().expect("Failed to get usbmuxd address");
+    info!("Getting devices from muxer at {usbmuxd_addr:?}");
 
     tokio::spawn(async move {
         // Check usbmuxd every second for the devices
