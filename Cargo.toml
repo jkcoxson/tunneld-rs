@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.43", features = ["full"] }
 axum = { version = "0.8", features = ["json", "query"] }
-idevice = { version = "0.1.17", features = [
+idevice = { version = "0.1.21", features = [
   "usbmuxd",
   "core_device_proxy",
   "tcp",
