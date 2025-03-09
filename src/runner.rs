@@ -6,7 +6,7 @@ use idevice::{
     core_device_proxy::CoreDeviceProxy,
     provider::{IdeviceProvider, TcpProvider, UsbmuxdProvider},
     usbmuxd::{Connection, UsbmuxdAddr, UsbmuxdConnection, UsbmuxdDevice},
-    IdeviceError, IdeviceService,
+    IdeviceService,
 };
 use log::{debug, info, warn};
 use serde::Serialize;
@@ -294,7 +294,7 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
     debug!("Creating provider for device");
     let mut usbmuxd = UsbmuxdConnection::default().await?;
     let provider: Box<dyn IdeviceProvider> = match &dev.connection_type {
-        Connection::Usb => Box::new(UsbmuxdProvider {
+        Connection::Usb | Connection::Unknown(_) => Box::new(UsbmuxdProvider {
             addr: UsbmuxdAddr::default(),
             tag: 1,
             udid: dev.udid.clone(),
@@ -306,10 +306,6 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
             pairing_file: usbmuxd.get_pair_record(&dev.udid).await?,
             label: "tunneld-rs".to_string(),
         }),
-        Connection::Unknown(u) => {
-            log::error!("Unknown device type: {u:?}");
-            return Err(IdeviceError::UnexpectedResponse.into());
-        }
     };
 
     let mut tun_proxy = CoreDeviceProxy::connect(&*provider).await?;
