@@ -369,7 +369,7 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
                         }
                         Err(e) => {
                             warn!("tunnel {udid} has stopped: {e:?}");
-                            killed_sender.send(()).unwrap();
+                            killed_sender.send(()).ok();
                             break;
                         }
                     }
