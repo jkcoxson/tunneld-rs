@@ -15,5 +15,5 @@ log = { version = "0.4" }
 env_logger = { version = "0.11" }
 serde = { version = "1", features = ["derive"] }
 json = { version = "0.12" }
-tun-rs = { version = "1.5", features = ["async"] }
+tun-rs = { version = "2.0", features = ["async"] }
 serde_json = { version = "1" }

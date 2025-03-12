@@ -11,7 +11,7 @@ use idevice::{
 use log::{debug, info, warn};
 use serde::Serialize;
 use serde_json::Map;
-use tun_rs::AbstractDevice;
+use tun_rs::DeviceBuilder;
 
 #[derive(Clone)]
 pub struct Runner {
@@ -313,20 +313,17 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
     let server_address = response.server_address.parse::<IpAddr>()?;
     let udid = dev.udid.clone();
 
-    let dev = tun_rs::create(&tun_rs::Configuration::default())?;
-    dev.add_address_v6(response.client_parameters.address.parse()?, 32)?;
-    dev.set_mtu(response.client_parameters.mtu)?;
-    dev.set_network_address(
-        response.client_parameters.address,
-        response.client_parameters.netmask.parse()?,
-        Some(response.server_address.parse()?),
-    )?;
+    let dev = DeviceBuilder::new()
+        .ipv6(
+            response.client_parameters.address,
+            response.client_parameters.netmask,
+        )
+        .mtu(response.client_parameters.mtu)
+        .build_async()?;
 
-    let async_dev = tun_rs::AsyncDevice::new(dev)?;
-    async_dev.enabled(true)?;
     info!(
         "Created tunnel for {udid} - [{:?}] {}:{}",
-        async_dev.name(),
+        dev.name(),
         response.server_address,
         response.server_rsd_port
     );
@@ -338,7 +335,7 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
         loop {
             let mut buf = vec![0; 1500];
             tokio::select! {
-                len = async_dev.recv(&mut buf) => {
+                len = dev.recv(&mut buf) => {
                     match len {
                         Ok(len) => {
                             if len == 0 {
@@ -363,7 +360,7 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
                             if res.is_empty() {
                                 continue;
                             }
-                            if let Err(e) = async_dev.send(&res).await {
+                            if let Err(e) = dev.send(&res).await {
                                 warn!("Failed to send packet to tun {udid}: {e:?}\n{res:?}");
                             }
                         }
