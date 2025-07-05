@@ -1,6 +1,6 @@
 // Jackson Coxson
 
-use std::net::IpAddr;
+use std::{net::IpAddr, str::FromStr};
 
 use idevice::{
     core_device_proxy::CoreDeviceProxy,
@@ -309,14 +309,14 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
     };
 
     let mut tun_proxy = CoreDeviceProxy::connect(&*provider).await?;
-    let response = tun_proxy.establish_tunnel().await?;
-    let server_address = response.server_address.parse::<IpAddr>()?;
+    let response = &tun_proxy.handshake;
     let udid = dev.udid.clone();
-
+    let server_address = IpAddr::from_str(&response.server_address).unwrap();
+    let rsd_port = response.server_rsd_port;
     let dev = DeviceBuilder::new()
         .ipv6(
-            response.client_parameters.address,
-            response.client_parameters.netmask,
+            response.client_parameters.address.clone(),
+            response.client_parameters.netmask.clone(),
         )
         .mtu(response.client_parameters.mtu)
         .build_async()?;
@@ -383,6 +383,6 @@ async fn start_tunnel(dev: &UsbmuxdDevice) -> Result<CachedDevice, Box<dyn std::
         killer: killer_sender,
         killed: killed_receiver,
         server_addr: server_address,
-        rsd_port: response.server_rsd_port,
+        rsd_port,
     })
 }
